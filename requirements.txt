@@ -1,7 +1,15 @@
 click
 imageio<=2.4.1
+matplotlib
 moviepy<1.0.0
 numpy
 opencv-python
 pims
+PyOpenGL
+pyyaml
+recordclass
+scikit-learn
 scipy
+sortednp
+transforms3d
+voluptuous

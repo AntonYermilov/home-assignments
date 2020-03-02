@@ -83,7 +83,7 @@ def track_and_calc_colors(camera_parameters: CameraParameters,
         intrinsic_mat
     )
     if not extracted_points:
-        print('Extracting 3d points from common frames failed: '
+        print('Extracting 3d points from known frames failed: '
               'either there are no common points, or triangulation angle between frames is too small.\n'
               'Try to choose another initial frames.', file=sys.stderr)
         exit(0)

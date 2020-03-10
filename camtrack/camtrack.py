@@ -24,8 +24,41 @@ from _camtrack import (
     build_correspondences,
     triangulate_correspondences,
     TriangulationParameters,
-    rodrigues_and_translation_to_view_mat3x4
+    rodrigues_and_translation_to_view_mat3x4,
+    eye3x4,
+    _remove_correspondences_with_ids
 )
+
+
+TRIANGULATION_PARAMS = TriangulationParameters(
+    max_reprojection_error=3,
+    min_triangulation_angle_deg=1.5,
+    min_depth=0.025
+)
+
+
+def initialize_views(intrinsic_mat, corner_storage):
+    best_frame = None
+    pi_1 = eye3x4()
+    for frame0 in [0]:
+        for frame in range(frame0 + 5, len(corner_storage) - 5):
+            corr = build_correspondences(corner_storage[frame0], corner_storage[frame])
+            essential_mat, mask = cv2.findEssentialMat(corr.points_1, corr.points_2, intrinsic_mat, method=cv2.RANSAC)
+            if essential_mat is None or mask is None:
+                continue
+
+            mask = mask.flatten()
+            R1, R2, t = cv2.decomposeEssentialMat(essential_mat)
+
+            pi_2s = [np.hstack((R1, t)), np.hstack((R1, -t)), np.hstack((R2, t)), np.hstack((R2, -t))]
+            for pi_2 in pi_2s:
+                _corr = _remove_correspondences_with_ids(corr, np.arange(len(mask), dtype=np.int32)[mask == 0])
+                points3d, _, _ = triangulate_correspondences(_corr, pi_1, pi_2, intrinsic_mat, TRIANGULATION_PARAMS)
+                if not best_frame or len(points3d) > best_frame[0]:
+                    best_frame = (len(points3d), frame, pi_2.copy(), frame0)
+
+    print(f'frame0={best_frame[3]}, frame1={best_frame[1]}')
+    return (best_frame[3], view_mat3x4_to_pose(pi_1)), (best_frame[1], view_mat3x4_to_pose(best_frame[2]))
 
 
 def extract_points(corners1, corners2, view_mat1, view_mat2, intrinsic_mat, ids_to_remove=None):
@@ -38,11 +71,7 @@ def extract_points(corners1, corners2, view_mat1, view_mat2, intrinsic_mat, ids_
         view_mat1,
         view_mat2,
         intrinsic_mat,
-        TriangulationParameters(
-            max_reprojection_error=1,
-            min_triangulation_angle_deg=1,
-            min_depth=0.1
-        )
+        TRIANGULATION_PARAMS
     )
     if not len(corr_ids):
         return None
@@ -56,14 +85,14 @@ def track_and_calc_colors(camera_parameters: CameraParameters,
                           known_view_1: Optional[Tuple[int, Pose]] = None,
                           known_view_2: Optional[Tuple[int, Pose]] = None) \
         -> Tuple[List[Pose], PointCloud]:
-    if known_view_1 is None or known_view_2 is None:
-        raise NotImplementedError()
-
     rgb_sequence = frameseq.read_rgb_f32(frame_sequence_path)
     intrinsic_mat = to_opencv_camera_mat3x3(
         camera_parameters,
         rgb_sequence[0].shape[0]
     )
+
+    if known_view_1 is None or known_view_2 is None:
+        known_view_1, known_view_2 = initialize_views(intrinsic_mat, corner_storage)
 
     view_mats = np.zeros((len(corner_storage), 3, 4), dtype=np.float64)
     processed_frames = np.zeros(len(corner_storage), dtype=np.bool)
@@ -137,12 +166,31 @@ def track_and_calc_colors(camera_parameters: CameraParameters,
             print(f'Current point cloud contains {sum(added_points)} points')
 
     for _ in range(2):
-        for i in range(1, len(corner_storage)):
-            if not processed_frames[i]:
+        for i in range(1, len(view_mats)):
+            if not processed_frames[i] and processed_frames[i - 1]:
                 processed_frames[i] = True
                 view_mats[i] = view_mats[i - 1]
         processed_frames = processed_frames[::-1]
         view_mats = view_mats[::-1]
+
+    dists = []
+    for i in range(1, len(corner_storage)):
+        dists.append(np.linalg.norm(view_mats[i] - view_mats[i - 1]))
+    dists = np.array(dists)
+
+    max_dist = np.median(dists) * 10
+
+    for i in range(1, len(corner_storage)):
+        if dists[i - 1] > max_dist:
+            j = i
+            while j < len(corner_storage) and dists[j - 1] > max_dist:
+                j += 1
+            for k in range(i, j - 1):
+                R = view_mats[i - 1][:, :3] if k - i + 1 <= j - k - 1 and j != len(corner_storage) else view_mats[j - 1][:, :3]
+                t1 = view_mats[i - 1][:, 3]
+                t2 = view_mats[j - 1][:, 3] if j != len(corner_storage) else view_mats[i - 1][:, 3]
+                t = t1 + (k - i + 1) * (t2 - t1) / (j - i)
+                view_mats[k] = np.hstack((R, t.reshape(3, 1)))
 
     print(f'Finished building point cloud, now it contains {sum(added_points)} points')
 

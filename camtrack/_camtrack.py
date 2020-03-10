@@ -17,7 +17,8 @@ __all__ = [
     'to_opencv_camera_mat3x3',
     'triangulate_correspondences',
     'view_mat3x4_to_pose',
-    'pose_to_view_mat3x4'
+    'pose_to_view_mat3x4',
+    '_remove_correspondences_with_ids'
 ]
 
 from collections import namedtuple

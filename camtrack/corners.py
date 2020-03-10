@@ -121,7 +121,7 @@ def _build_impl(frame_sequence: pims.FramesSequence, builder: _CornerStorageBuil
     for level in range(LEVELS):
         corners.append(find_new_corners(image_0, level))
         indices = np.arange(frame_corners.new_index, frame_corners.new_index + len(corners[-1]))
-        frame_corners.new_index += len(corners)
+        frame_corners.new_index += len(corners[-1])
 
         frame_corners.add_corners(corners[-1] * 2**level + 2**level // 2, CORNERS_RADIUS * 2**level, indices)
     frame_corners.move_to_frame(0)

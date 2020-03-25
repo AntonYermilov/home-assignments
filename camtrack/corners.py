@@ -22,12 +22,12 @@ from _corners import dump, load, draw, without_short_tracks, create_cli
 
 
 LEVELS = 1
-MAX_CORNERS = 2500
+MAX_CORNERS = 3000
 CORNERS_RADIUS = 7
 
 feature_params = dict(
     qualityLevel=0.005,
-    minDistance=7,
+    minDistance=5,
     blockSize=9
 )
 

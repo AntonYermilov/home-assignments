@@ -31,9 +31,9 @@ from _camtrack import (
 
 
 TRIANGULATION_PARAMS = TriangulationParameters(
-    max_reprojection_error=3,
-    min_triangulation_angle_deg=1.5,
-    min_depth=0.025
+    max_reprojection_error=4,
+    min_triangulation_angle_deg=0.5,
+    min_depth=0.01  # 0.025
 )
 
 
@@ -176,9 +176,11 @@ def track_and_calc_colors(camera_parameters: CameraParameters,
     dists = []
     for i in range(1, len(corner_storage)):
         dists.append(np.linalg.norm(view_mats[i] - view_mats[i - 1]))
+        # print(f'frame={i}, dist={dists[-1]}')
     dists = np.array(dists)
 
     max_dist = np.median(dists) * 10
+    # print(f'max_dist={max_dist}')
 
     for i in range(1, len(corner_storage)):
         if dists[i - 1] > max_dist:
@@ -191,6 +193,10 @@ def track_and_calc_colors(camera_parameters: CameraParameters,
                 t2 = view_mats[j - 1][:, 3] if j != len(corner_storage) else view_mats[i - 1][:, 3]
                 t = t1 + (k - i + 1) * (t2 - t1) / (j - i)
                 view_mats[k] = np.hstack((R, t.reshape(3, 1)))
+
+    # for i in range(1, len(corner_storage)):
+    #     dist = np.linalg.norm(view_mats[i] - view_mats[i - 1])
+    #     print(f'frame={i}, dist={dist}')
 
     print(f'Finished building point cloud, now it contains {sum(added_points)} points')
 
